@@ -50,30 +50,12 @@ std::pair<int, int> get_max_values(const std::vector<claim>& claims)
             nano::max(claims, nano::less<>{}, &claim::bottom).bottom};
 }
 
-struct coord {
-    int x = 0;
-    int y = 0;
-};
+enum class claim_status : int8_t { none, single, multiple };
 
-struct fabric {
-    fabric(int width, int height)
-        : height(height),
-          counts(width * height)
-    {}
-
-    void add_claim(coord c)
-    {
-        ++counts[to_index(c)];
-    }
-
-    const auto& claim_counts() const { return counts; }
-
-private:
-    int to_index(coord c) { return c.x * height + c.y; }
-
-    int height = 0;
-    std::vector<int> counts;
-};
+void inc_status(claim_status& s)
+{
+    s = (s == claim_status::none ? claim_status::single : claim_status::multiple);
+}
 
 }
 
@@ -91,25 +73,25 @@ int main(int argc, char** argv)
         // Calculate the max values of claims that we have been given
         // this always seems to be [1000, 1000] or thereabouts, but
         // it's not explicitly stated in the problem description
-        const auto maxima = get_max_values(claims);
-        fabric f(maxima.first, maxima.second);
+        const auto [width, height] = get_max_values(claims);
+        std::vector<claim_status> fabric(width * height, claim_status::none);
 
         for (const auto& cl : claims) {
             for (int i = cl.left; i < cl.right; ++i) {
                 for (int j = cl.top; j < cl.bottom; ++j) {
-                    f.add_claim({i, j});
+                    inc_status(fabric[i * height + j]);
                 }
             }
         }
 
         fmt::print("{} squares of fabric are within two or more claims\n",
-                  nano::count_if(f.claim_counts(), [](int val) { return val > 1; }));
+                  nano::count(fabric, claim_status::multiple));
     }
 
     // Part two
     {
         const auto no_overlap = [&](const auto& x) {
-            return nano::find_if(claims, [&](const auto& y) {
+            return nano::find_if(claims, [x](const auto& y) {
                 return x.id != y.id && overlap(x, y);
             }) == claims.end();
         };
